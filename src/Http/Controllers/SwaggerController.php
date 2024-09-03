@@ -7,6 +7,6 @@ class SwaggerController
 {
     public function doc()
     {
-        return view('doc');
+        return view('swagger::swagger');
     }
 }

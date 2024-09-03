@@ -24,8 +24,8 @@ class SwaggerDoc extends Command
     protected $signature = "swagger:doc {--folder= : Folder which generated files are saved} {--group= : Main file which urls are saved}";
     protected $description = 'Command description';
 
-    protected string $folder = "apidoc";
-    protected string $group = "admin";
+    protected string $folder = "swagger";
+    protected string $group = "root";
 
     public function handle()
     {
@@ -37,6 +37,7 @@ class SwaggerDoc extends Command
         if (!file_exists($this->folder)) {
             mkdir($this->folder, 0777, true);
         }
+        $this->writeAssets();
 
         if ($group = $this->option('group')) {
             $this->group = ($this->folder . '/' . $group . '.json');
@@ -44,10 +45,26 @@ class SwaggerDoc extends Command
             $this->group = ($this->folder . '/' . $this->group . '.json');
         }
         if (!file_exists($this->group)) {
-            file_put_contents($this->group, file_get_contents(__DIR__ . '/doc/template.json'));
+            copy(__DIR__ . '/../../../resources/templates/template.json', $this->group);
         }
         $this->resolve();
     }
+
+    protected function writeAssets()
+    {
+        if (!file_exists($this->folder . '/swagger.css')) {
+            $from = __DIR__ . '/../../../resources/css/swagger.css';
+            $to = $this->folder . '/swagger.css';
+            copy($from, $to);
+        }
+
+        if (!file_exists($this->folder . '/swagger.js')) {
+            $from = __DIR__ . '/../../../resources/js/swagger.js';
+            $to = $this->folder . '/swagger.js';
+            copy($from, $to);
+        }
+    }
+
 
     protected function writeToGroupFile($group)
     {

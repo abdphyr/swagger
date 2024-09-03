@@ -27,13 +27,18 @@ class SwaggerServiceProvider extends ServiceProvider
             'prefix' => '/abd/swagger',
             'namespace' => 'Abd\Swagger\Http\Controllers',
         ], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
         });
     }
 
     protected function registerResources()
     {
-        $this->loadViewsFrom(__DIR__.'/../resources/views', 'swagger');
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'swagger');
+        // if ($this->app->runningInConsole()) {
+            // $this->publishes([
+            //     __DIR__ . '/../resources/views' => $this->app->resourcePath('views/vendor/swagger'),
+            // ], 'swagger');
+        // }
     }
 
     /**
