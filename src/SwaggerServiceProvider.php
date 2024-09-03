@@ -14,7 +14,6 @@ class SwaggerServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        dd('aa');
         $this->registerRoutes();
         $this->registerResources();
         $this->registerPublishing();

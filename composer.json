@@ -1,5 +1,5 @@
 {
-    "version": "1.7.0",
+    "version": "1.0.0",
     "name": "abdumannon/swagger",
     "description": "This package helps you to create json files for swagger and other making API documantation",
     "autoload": {
