@@ -1,0 +1,26 @@
+{
+    "version": "1.7.0",
+    "name": "abdumannon/swagger",
+    "description": "This package helps you to create json files for swagger and other making API documantation",
+    "autoload": {
+        "psr-4": {
+            "Abd\\Swagger\\": "src/"
+        }, 
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Abd\\Swagger\\SwaggerServiceProvider"
+            ]
+        }
+    },
+    "authors": [
+        {
+            "name": "Abdumannon Norboyev"
+        }
+    ],
+    "license": "MIT"
+}

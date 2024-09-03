@@ -1,0 +1,28 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Admin panel API",
+        "description": "Adm jobs api documentation",
+        "contact": {
+            "email": "abdphyr@gmail.com"
+        },
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://127.0.0.1:8000/api"
+        }
+    ],
+    "tags": [],
+    "paths": {},
+    "components": {
+        "schemas": {},
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    }
+}
