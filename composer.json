@@ -1,0 +1,25 @@
+{
+    "version": "0.0.1",
+    "name": "abdphyr/swagger",
+    "description": "This package helps to debug your code and making API documantation",
+    "autoload": {
+        "psr-4": {
+            "Abdphyr\\Swagger\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Abdphyr\\Swagger\\SwaggerServiceProvider"
+            ]
+        }
+    },
+    "authors": [
+        {
+            "name": "Abdumannon Norboyev"
+        }
+    ]
+}
