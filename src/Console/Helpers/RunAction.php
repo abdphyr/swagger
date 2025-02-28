@@ -312,7 +312,7 @@ class RunAction
 
     public function getUrl()
     {
-        $url = 'api/' . $this->actionMethodAttr->uri;
+        $url = 'api' . $this->actionMethodAttr->uri;
         foreach ($this->actionMethodAttr->route as $key => $value) {
             $url = str_replace("{{$key}}", $value, $url);
         }

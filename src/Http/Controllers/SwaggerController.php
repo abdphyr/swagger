@@ -6,7 +6,7 @@ class SwaggerController
 {
     public function swaggerUI()
     {
-        return view('swagger.swagger');
+        return view('swagger');
     }
 
     public function swaggerDocument()
