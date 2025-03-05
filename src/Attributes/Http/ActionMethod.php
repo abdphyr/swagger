@@ -20,6 +20,7 @@ class ActionMethod
         public array $tags = [],
         public string $description = '',
         public string $summary = '',
-        public bool $hasAuth = true,
+        public bool $auth = true,
+        public array $pages = []
     ) {}
 }

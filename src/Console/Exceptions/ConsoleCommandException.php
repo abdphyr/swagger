@@ -16,7 +16,7 @@ class ConsoleCommandException extends \Exception
         if (isset($command->{$this->severity})) {
             $command->{$this->severity}($this->message);
         } else {
-            $command->info($this->message);
+            $command->info('<fg=red>' . $this->message . '</>');
         }
     }
 }

@@ -5,6 +5,7 @@ namespace Abdphyr\Swagger\Console\Helpers;
 use Abdphyr\Swagger\Attributes\DTO\QueryParam;
 use Abdphyr\Swagger\Attributes\DTO\FileParam;
 use Abdphyr\Swagger\Attributes\DTO\RequestParam;
+use Abdphyr\Swagger\Attributes\Http\ActionController;
 use Abdphyr\Swagger\Attributes\Http\ActionMethod;
 use Abdphyr\Swagger\Console\Exceptions\ConsoleCommandException;
 use Illuminate\Contracts\Support\Responsable;
@@ -19,19 +20,22 @@ use Illuminate\Support\Collection;
 class RunAction
 {
     public ActionMethod $actionMethodAttr;
+    public ActionController $actionControllerAttr;
     protected Request|FormRequest $request;
     protected JsonResponse|Response $response;
     protected \ReflectionMethod $reflectionMethod;
+    protected \ReflectionClass $reflectionController;
 
     public function __construct(
         public string $controller,
         public string $method,
-        public ?string $optionQuery = '',
         public ?string $optionRoute = '',
         public ?string $optionRequest = '',
+        public ?string $optionQuery = '',
     ) {
+        $this->setReflectionController();
         $this->setReflectionMethod();
-        $this->setActionMethodAttrInstance();
+        $this->setParamsFromOption();
         $this->setInitialRequestInstance();
         $this->setDescription();
         $this->setSummary();
@@ -124,12 +128,14 @@ class RunAction
         $requestAtrributes = $formRequestClassReflection->getAttributes(RequestParam::class);
         foreach ($requestAtrributes as $reqAttr) {
             $attr = $reqAttr->newInstance();
-            if ($attr->key) $this->actionMethodAttr->request[$attr->key] = $attr->value; 
+            if ($attr->key && !isset($this->actionMethodAttr->request[$attr->key]))
+                $this->actionMethodAttr->request[$attr->key] = $attr->value;
         }
         $requestProperties = array_filter($properties, fn($property) => $property->getAttributes(RequestParam::class));
         foreach ($requestProperties as $property) {
             $param = $property->getAttributes(RequestParam::class)[0];
-            $this->actionMethodAttr->request[$property->getName()] = $param->newInstance()->value;
+            if (!isset($this->actionMethodAttr->request[$property->getName()]))
+                $this->actionMethodAttr->request[$property->getName()] = $param->newInstance()->value;
         }
         $this->setRequestParamsFromOption();
 
@@ -137,12 +143,14 @@ class RunAction
         $queryAtrributes = $formRequestClassReflection->getAttributes(QueryParam::class);
         foreach ($queryAtrributes as $queryAttr) {
             $attr = $queryAttr->newInstance();
-            if ($attr->key) $this->actionMethodAttr->query[$attr->key] = $attr->value; 
+            if ($attr->key && !isset($this->actionMethodAttr->query[$attr->key]))
+                $this->actionMethodAttr->query[$attr->key] = $attr->value;
         }
         $queryProperties = array_filter($properties, fn($property) => $property->getAttributes(QueryParam::class));
         foreach ($queryProperties as $property) {
             $param = $property->getAttributes(QueryParam::class)[0];
-            $this->actionMethodAttr->query[$property->getName()] = $param->newInstance()->value;
+            if (!isset($this->actionMethodAttr->query[$property->getName()]))
+                $this->actionMethodAttr->query[$property->getName()] = $param->newInstance()->value;
         }
         $this->setQueryParamsFromOption();
 
@@ -150,12 +158,14 @@ class RunAction
         $fileAtrributes = $formRequestClassReflection->getAttributes(FileParam::class);
         foreach ($fileAtrributes as $fileAttr) {
             $attr = $fileAttr->newInstance();
-            if ($attr->key) $this->actionMethodAttr->files[$attr->key] = $attr->value; 
+            if ($attr->key && !isset($this->actionMethodAttr->files[$attr->key]))
+                $this->actionMethodAttr->files[$attr->key] = $attr->value;
         }
         $fileProperties = array_filter($properties, fn($property) => $property->getAttributes(FileParam::class));
         foreach ($fileProperties as $property) {
             $param = $property->getAttributes(FileParam::class)[0];
-            $this->actionMethodAttr->files[$property->getName()] = $param->newInstance()->value;
+            if (!isset($this->actionMethodAttr->files[$property->getName()]))
+                $this->actionMethodAttr->files[$property->getName()] = $param->newInstance()->value;
         }
 
         $formRequest->query->add($this->actionMethodAttr->query);
@@ -163,24 +173,34 @@ class RunAction
         $formRequest->files->add($this->actionMethodAttr->files);
     }
 
-    protected function setReflectionMethod()
+    protected function setReflectionController()
     {
         if (! class_exists($this->controller)) {
             throw new ConsoleCommandException('warn', "Target controller <fg=red>$this->controller</> is not found!");
         }
+        $reflectionController = new \ReflectionClass($this->controller);
+        if ($attr = $reflectionController->getAttributes(ActionController::class)) {
+            $this->actionControllerAttr = $attr[0]->newInstance();
+            $this->reflectionController = $reflectionController;
+        } else throw new ConsoleCommandException('info', "<fg=red>Add attribute <fg=yellow>#[ActionController(uri: '/absolute/endpoint')]</></> to \"$this->controller\"");
+    }
+
+    protected function setReflectionMethod()
+    {
         if (! method_exists($this->controller, $this->method)) {
             throw new ConsoleCommandException('warn', "Target method $this->controller::<fg=red>$this->method()</> is not found!");
         }
-        $this->reflectionMethod = new \ReflectionMethod($this->controller, $this->method);
+        $reflectionMethod = new \ReflectionMethod($this->controller, $this->method);
+        if ($attr = $reflectionMethod->getAttributes(ActionMethod::class)) {
+            $this->actionMethodAttr = $attr[0]->newInstance();
+            $this->reflectionMethod = $reflectionMethod;
+        } else {
+            throw new ConsoleCommandException('info', "<fg=red>None action method. Add attribute like <fg=yellow>#[ActionMethod(uri: 'relative/endpoint', method: 'Get')]</></>");
+        }
     }
 
-    protected function setActionMethodAttrInstance()
+    protected function setParamsFromOption()
     {
-        $actionMethod = $this->reflectionMethod->getAttributes(ActionMethod::class);
-        if (! $actionMethod) {
-            throw new ConsoleCommandException('info', "<fg=red>None action method. Add attribute like <fg=yellow>#[ActionMethod(uri: '/api/endpoint', method: 'Get')]</></>");
-        }
-        $this->actionMethodAttr = $actionMethod[0]->newInstance();
         $this->setRouteParamsFromOption();
         $this->setRequestParamsFromOption();
         $this->setQueryParamsFromOption();
@@ -290,29 +310,42 @@ class RunAction
         $this->response = $response;
     }
 
-    public function requestBody()
+    public function getUri()
     {
-        return $this->actionMethodAttr->request;
+        $uri = '';
+        if (str_starts_with($this->actionMethodAttr->uri, '/')) {
+            $uri = $this->actionMethodAttr->uri;
+        } else {
+            $uri = '/' . collect(explode('/', $this->actionControllerAttr->uri))->filter(fn($s) => $s)->join('/');
+            if ($this->actionMethodAttr->uri) {
+                $uri .= '/' . $this->actionMethodAttr->uri;
+            }
+        }
+        foreach ($this->actionMethodAttr->route as $key => $value) {
+            if (! str_contains($uri, "{{$key}}")) {
+                if (str_ends_with($uri, '/')) {
+                    $uri .= "{{$key}}";
+                } else {
+                    $uri .= "/{{$key}}";
+                }
+            }
+        }
+        return $uri;
     }
 
-    public function queryParams()
+    public function getHttpMethod()
     {
-        return $this->actionMethodAttr->query;
+        return strtolower($this->actionMethodAttr->method);
     }
 
-    public function httpMethod()
+    public function getHttpStatus()
     {
-        return $this->actionMethodAttr->method;
+        return $this->response->getStatusCode() ?? 500;
     }
 
-    public function getActionMethodAttrInstance()
+    public function getResolvedUri()
     {
-        return $this->actionMethodAttr;
-    }
-
-    public function getUrl()
-    {
-        $url = 'api' . $this->actionMethodAttr->uri;
+        $url = $this->getUri();
         foreach ($this->actionMethodAttr->route as $key => $value) {
             $url = str_replace("{{$key}}", $value, $url);
         }

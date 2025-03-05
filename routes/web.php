@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Route;
 
 
 if (app()->environment() != 'production') {
-    Route::get('swagger-ui', [SwaggerController::class, 'swaggerUI'])->name('swagger-ui');
-    Route::get('swagger-document', [SwaggerController::class, 'swaggerDocument'])->name('swagger-document');
+    $config = config('swagger', []);
+    foreach ($config as $page => $properties) {
+        Route::get(config("swagger.$page.ui_endpoint", "/swagger/$page-ui"), [SwaggerController::class, "$page-ui"])->name("$page-ui");
+        Route::get(config("swagger.$page.data_endpoint", "/swagger/$page-data"), [SwaggerController::class, "$page-data"])->name("$page-data");
+    }
 }

@@ -26,16 +26,22 @@ class DebugAction extends Command
         try {
             $controller = $this->namespace . $this->argument('controller');
             $method = $this->argument('method');
-            $action = new RunAction($controller, $method, $this->option('query'), $this->option('route'), $this->option('request'));
+            $action = new RunAction(
+                controller: $controller,
+                method: $method,
+                optionRoute: $this->option('route'),
+                optionRequest: $this->option('request'),
+                optionQuery: $this->option('query')
+            );
             $response = $action->getResponse();
             $content = json_decode($response->getContent(), true);
             $data = json_encode($content, JSON_PRETTY_PRINT);
-            $this->outputInfo('URL: ' . $this->white($action->getUrl()), $response);
-            $this->outputInfo('HttpMethod: ' . $this->blue($action->httpMethod()), $response);
-            $this->outputInfo('HttpStatus: ' . $this->blue($response->getStatusCode()), $response);
+            $this->outputInfo('URL: ' . $this->white($action->getResolvedUri()), $response);
+            $this->outputInfo('HttpMethod: ' . $this->blue($action->getHttpMethod()), $response);
+            $this->outputInfo('HttpStatus: ' . $this->blue($action->getHttpStatus()), $response);
             $this->outputInfo('HttpResponse: ' . $this->yellow($data), $response);
-            $this->outputInfo('RequestBody: ' . $this->white(json_encode($action->requestBody(), JSON_PRETTY_PRINT)), $response);
-            $this->outputInfo('RequestParams: ' . $this->white(json_encode($action->queryParams(), JSON_PRETTY_PRINT)), $response);
+            $this->outputInfo('RequestBody: ' . $this->white(json_encode($action->actionMethodAttr->request, JSON_PRETTY_PRINT)), $response);
+            $this->outputInfo('RequestParams: ' . $this->white(json_encode($action->actionMethodAttr->query, JSON_PRETTY_PRINT)), $response);
         } catch (ConsoleCommandException $th) {
             $th->output($this);
         } catch (\Throwable $th) {

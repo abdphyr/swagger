@@ -8,17 +8,12 @@ use Illuminate\Support\ServiceProvider;
 
 class SwaggerServiceProvider extends ServiceProvider
 {
-    /**
-     * Bootstrap the application services.
-     *
-     * @return void
-     */
     public function boot()
     {
         $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
 
-        if ($this->app->runningInConsole()) {
-            
+        if ($this->app->runningInConsole() && (app()->environment() != 'production')) {
+
             $this->commands([
                 DebugAction::class,
                 MakeApiDoc::class
@@ -26,14 +21,6 @@ class SwaggerServiceProvider extends ServiceProvider
 
             $this->publishes([
                 __DIR__ . '/../config/swagger.php' => config_path('swagger.php'),
-            ], 'public');
-
-            $this->publishes([
-                __DIR__ . '/../resources/js/swagger.js' => resource_path('js/swagger.js'),
-            ], 'public');
-            
-            $this->publishes([
-                __DIR__ . '/../resources/views/swagger.blade.php' => resource_path('views/swagger.blade.php'),
             ], 'public');
         }
     }

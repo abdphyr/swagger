@@ -2,6 +2,7 @@
 
 namespace Abdphyr\Swagger\Console\Commands;
 
+use Abdphyr\Swagger\Attributes\Http\ActionController;
 use Abdphyr\Swagger\Attributes\Http\ActionMethod;
 use Abdphyr\Swagger\Console\Exceptions\ConsoleCommandException;
 use Abdphyr\Swagger\Console\Helpers\RunAction;
@@ -23,39 +24,175 @@ class MakeApiDoc extends Command
     const BOO = "boolean";
     const BIN = "binary";
 
-    protected $signature = 'generate:swagger {--controller= : Controller name}';
+    protected $signature = 'generate:swagger 
+        {page?}
+        {--controller= : Controller name} 
+        {--c= : Controller name} 
+        {--method= : Method name} 
+        {--m= : Method name} 
+        {--rm : Removes controller\'s action} 
+        {--clear : Clear cache}
+
+        {--route= : Route parameter} 
+        {--request= : Request body parameter} 
+        {--query= : Query parameter}';
 
     protected $description = 'Generates API data openAPI format and save cache';
 
-    public function handle()
+    protected string $page;
+
+    protected function validatePageArgument()
     {
-        $result = $this->getCacheData();
-        $controllers = $this->getControllersList();
-        foreach ($controllers as $controller) {
-            $methods = $this->getMethods($controller);
-            foreach ($methods as $method) {
-                $this->info($controller . "::" . $this->yellow($method . '()'));
-                try {
-                    $action = new RunAction($controller, $method);
-                    $actionMethodAttr = $action->actionMethodAttr;
-                    if (isset($result[$actionMethodAttr->uri])) {
-                        $result[$actionMethodAttr->uri][strtolower($actionMethodAttr->method)] = $this->resolveResponse($action);
-                    } else {
-                        $result[$actionMethodAttr->uri] = [
-                            strtolower($actionMethodAttr->method) => $this->resolveResponse($action)
-                        ];
-                    }
-                } catch (ConsoleCommandException $th) {
-                    $th->output($this);
-                }
-            }
+        $pages = array_keys(config('swagger'));
+        $page = $this->argument('page');
+        if (! $page) {
+            $this->info($this->white('Please enter page name! Exist pages: ') . $this->yellow(implode(',', $pages)));
+            exit(self::FAILURE);
+        } else if (! in_array($page, $pages)) {
+            $this->info($this->white($this->red($page) . ' page is not found! Exist pages: ') . $this->yellow(implode(',', $pages)));
+            exit(self::FAILURE);
         }
-        $this->setCacheData($result);
+        $this->page = $this->argument('page');
     }
 
-    protected function getCacheData($data = null, $path = null)
+    public function getPages(ActionController $actionControllerAttr, ActionMethod $actionMethodAttr, $controllerName) 
     {
-        $path = $path ?? base_path('bootstrap/cache/swagger.php');
+        $pages = array_merge($actionControllerAttr->pages, $actionMethodAttr->pages);
+        $configPages = array_keys(config('swagger'));
+        foreach ($pages as $page) {
+            if (! in_array($page, $configPages)) {
+                $this->info($this->white("<fg=yellow>$page</> page is not found. See <fg=cyan>$controllerName</> and " . $this->cyan(config_path('swagger.php'))));
+                exit(self::FAILURE);
+            }
+        }
+        return $pages;
+    }
+
+    protected function getActions()
+    {
+        $actions = [];
+        $controllers = $this->getControllersList($con = ($this->option('controller') ?? $this->option('c')));
+        if (empty($controllers)) {
+            $this->info($this->white('Controller ' . $this->yellow($con) . ' not found!'));
+            exit(self::FAILURE);
+        }
+        foreach ($controllers as $controller) {
+            $reflectionController = new \ReflectionClass($controller);
+            if ($reflectionController->isAbstract()) continue;
+            if (!($attrs = $reflectionController->getAttributes(ActionController::class))) {
+                $this->info("<fg=red>Add attribute <fg=yellow>#[ActionController(uri: '/absolute/endpoint')]</></> to " . $reflectionController->getName());
+                exit(self::FAILURE);
+            }
+            $actionControllerAttr = $attrs[0]->newInstance();
+
+            if ($con && $met = ($this->option('method') ?? $this->option('m'))) {
+                if (! $reflectionController->hasMethod($met)) {
+                    $this->info($this->white('Target method ') . $this->yellow($reflectionController->getName() . "::<fg=red>$met()") . $this->white(' is not found!'));
+                    exit(self::FAILURE);
+                }
+                $reflectionMethod = $reflectionController->getMethod($met);
+                if (! ($attr = $reflectionMethod->getAttributes(ActionMethod::class))) {
+                    $this->info("<fg=white>None action method. Add attribute like <fg=yellow>#[ActionMethod(uri: 'relative/endpoint', method: 'Get')]</></>");
+                    exit(self::FAILURE);
+                }
+                $actionMethodAttr = $attr[0]->newInstance();
+                if (in_array($this->page, $this->getPages($actionControllerAttr, $actionMethodAttr, $reflectionController->getName()))) {
+                    $actions[] = ['controller' => $reflectionController->getName(), 'method' => $reflectionMethod->getName()];
+                }
+                return $actions;
+            }
+
+            $publicMethods = $reflectionController->getMethods(\ReflectionMethod::IS_PUBLIC);
+            $methods = array_filter($publicMethods, function ($method) use ($actionControllerAttr, $reflectionController) {
+                if ($attrs = $method->getAttributes(ActionMethod::class)) {
+                    if (in_array($this->page, $this->getPages($actionControllerAttr, $attrs[0]->newInstance(), $reflectionController->getName()))) return true;
+                    else return false;
+                }
+            });
+            foreach ($methods as $key => $method) {
+                $actions[] = ['controller' => $reflectionController->getName(), 'method' => $method->getName()];
+            }
+        }
+        return $actions;
+    }
+
+    protected function getControllersList($search = '')
+    {
+        $namespace = "App\\Http\\Controllers";
+        $path = app_path('Http/Controllers');
+        return $this->getFiles($path, $namespace, '', $search);
+    }
+
+    public function handle()
+    {
+        $this->validatePageArgument();
+        if ($this->option('clear')) {
+            $this->clearCacheData();
+            $this->info('Data is cleared successfully !');
+            return;
+        }
+        $cache = $this->getCacheData();
+        $actions = $this->getActions();
+        if (empty($actions)) {
+            $this->info('No action');
+        }
+        foreach ($actions as $action) {
+            try {
+                $actionResult = new RunAction(
+                    controller: $action['controller'],
+                    method: $action['method'],
+                    optionRoute: $this->option('route'),
+                    optionRequest: $this->option('request'),
+                    optionQuery: $this->option('query')
+                );
+
+                $uri = $actionResult->getUri();
+                $httpMethod = $actionResult->getHttpMethod();
+                $httpStatus = $actionResult->getHttpStatus();
+
+                if ($this->option('rm')) {
+                    $this->remove($cache, $uri, $httpMethod);
+                    continue;
+                }
+
+                if (isset($cache[$uri])) {
+                    if (isset($cache[$uri][$httpMethod])) {
+                        $responses = $cache[$uri][$httpMethod]['responses'];
+                        $cache[$uri][$httpMethod] = $this->resolveResponse($actionResult);
+                        $responses[$httpStatus] = $cache[$uri][$httpMethod]['responses'][$httpStatus];
+                        $cache[$uri][$httpMethod]['responses'] = $responses;
+                        $this->info($this->white($this->page) . ' ' . $this->cyan(strtoupper($httpMethod)) . ' -> ' . $this->yellow($uri) . $this->green(' updated!'));
+                    } else {
+                        $cache[$uri][$httpMethod] = $this->resolveResponse($actionResult);
+                        $this->info($this->white($this->page) . ' ' . $this->cyan(strtoupper($httpMethod)) . ' -> ' . $this->yellow($uri) . $this->green(' generated!'));
+                    }
+                } else {
+                    $cache[$uri] = [$httpMethod => $this->resolveResponse($actionResult)];
+                    $this->info($this->white($this->page) . ' ' . $this->cyan(strtoupper($httpMethod)) . ' -> ' . $this->yellow($uri) . $this->green(' generated!'));
+                }
+            } catch (ConsoleCommandException $th) {
+                $th->output($this);
+            }
+        }
+        $this->setCacheData($cache);
+    }
+
+    protected function remove(&$cache, $uri, $httpMethod)
+    {
+        if (isset($cache[$uri])) {
+            if (isset($cache[$uri][$httpMethod])) {
+                $this->info($this->white($this->page) . ' ' . $this->cyan(strtoupper($httpMethod)) . ' -> ' . $this->yellow($uri) . $this->red(' removed!'));
+                unset($cache[$uri][$httpMethod]);
+            } else unset($cache[$uri]);
+        }
+    }
+
+    protected function getCacheData()
+    {
+        if (! is_dir(base_path("bootstrap/cache/swagger"))) {
+            mkdir(base_path("bootstrap/cache/swagger"));
+        }
+        $path = base_path("bootstrap/cache/swagger/$this->page.php");
         if (!file_exists($path)) {
             file_put_contents($path, "<?php\nreturn " . var_export($data ?? [], true) . ";");
         }
@@ -63,41 +200,33 @@ class MakeApiDoc extends Command
         return is_array($data) ? $data : [];
     }
 
-    protected function setCacheData($data, $path = null)
+    protected function setCacheData($cache = [])
     {
-        $path = $path ?? base_path('bootstrap/cache/swagger.php');
-        file_put_contents($path, "<?php\nreturn " . var_export($data ?? [], true) . ";");
+        $path = base_path("bootstrap/cache/swagger/$this->page.php");
+        file_put_contents($path, "<?php\nreturn " . var_export($cache ?? [], true) . ";");
+        return $cache;
+    }
+
+    protected function clearCacheData($data = [])
+    {
+        $path = base_path("bootstrap/cache/swagger/$this->page.php");
+        file_put_contents($path, "<?php\nreturn " . var_export([], true) . ";");
         return $data;
     }
 
-    protected function getMethods(string $controller)
-    {
-        $reflectionController = new \ReflectionClass($controller);
-        $publicMethods = $reflectionController->getMethods(\ReflectionMethod::IS_PUBLIC);
-        $methods = array_filter($publicMethods, fn($m) => $m->getAttributes(ActionMethod::class));
-        return array_map(fn($m) => $m->getName(), $methods);
-    }
-
-    protected function getControllersList()
-    {
-        $namespace = "App\\Http\\Controllers";
-        $path = app_path('Http/Controllers');
-        return $this->getFiles($path, $namespace, '');
-    }
-
-    protected function getFiles($path, $namespace, $subnamespace)
+    protected function getFiles($path, $namespace, $subnamespace, $search = '')
     {
         $result = [];
         $files = scandir($path);
         foreach ($files as $file) {
             if ($file == '.' || $file == '..') continue;
             if (is_dir("$path/$file")) {
-                $sub = $this->getFiles("$path/$file", "$namespace\\$file", ($subnamespace ? "$subnamespace\\$file" : $file));
+                $sub = $this->getFiles("$path/$file", "$namespace\\$file", ($subnamespace ? "$subnamespace\\$file" : $file), $search);
                 $result = [...$result, ...$sub];
             } else {
                 $name = pathinfo($file, PATHINFO_FILENAME);
-                if ($option = $this->option('controller')) {
-                    if ($option == ($subnamespace ? "$subnamespace\\$name" : $name)) {
+                if ($search) {
+                    if ($search == ($subnamespace ? "$subnamespace\\$name" : $name)) {
                         $result[] = "$namespace\\$name";
                     }
                 } else $result[] = "$namespace\\$name";
@@ -116,7 +245,7 @@ class MakeApiDoc extends Command
         $this->setParameters($parameters, $actionMethodAttr->query, 'query');
         $this->setParameters($parameters, $actionMethodAttr->headers, 'header');
         $result['parameters'] = $parameters;
-        if ($actionMethodAttr->hasAuth) $result['security'] = [['bearerAuth' => []]];
+        if ($actionMethodAttr->auth) $result['security'] = [['bearerAuth' => []]];
         $this->setRequestBody($result, $actionMethodAttr->request, $actionMethodAttr->files);
         $this->setResponseContent($result, $action->getResponse());
         return $result;
