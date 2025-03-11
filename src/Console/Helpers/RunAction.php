@@ -225,8 +225,7 @@ class RunAction
     protected function setTags()
     {
         $tags = $this->actionMethodAttr->tags;
-        $array = explode('\\', $this->controller);
-        $controller = strtolower(str_replace('Controller', '', array_pop($array)));
+        $controller = strtolower(str_replace('Controller', '', class_basename($this->controller)));
         $tags = array_merge($tags, [$controller]);
         $this->actionMethodAttr->tags = $tags;
     }
@@ -234,8 +233,7 @@ class RunAction
     protected function setDescription()
     {
         if (!$this->actionMethodAttr->description) {
-            $array = explode('\\', $this->controller);
-            $controller = str_replace('Controller', '', array_pop($array));
+            $controller = str_replace('Controller', '', class_basename($this->controller));
             $this->actionMethodAttr->description = $controller . ' ' . $this->method;
         }
     }
@@ -243,8 +241,7 @@ class RunAction
     protected function setSummary()
     {
         if (!$this->actionMethodAttr->summary) {
-            $array = explode('\\', $this->controller);
-            $controller = str_replace('Controller', '', array_pop($array));
+            $controller = str_replace('Controller', '', class_basename($this->controller));
             $this->actionMethodAttr->summary = $controller . ' ' . $this->method;
         }
     }

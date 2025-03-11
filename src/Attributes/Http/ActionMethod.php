@@ -21,6 +21,7 @@ class ActionMethod
         public string $description = '',
         public string $summary = '',
         public bool $auth = true,
-        public array $pages = []
+        public array $pages = [],
+        public int $ord = 0
     ) {}
 }

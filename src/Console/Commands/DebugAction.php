@@ -6,6 +6,7 @@ use Abdphyr\Swagger\Console\Exceptions\ConsoleCommandException;
 use Abdphyr\Swagger\Console\Helpers\RunAction;
 use Abdphyr\Swagger\Traits\ConsoleColorWrapping;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class DebugAction extends Command
@@ -21,9 +22,15 @@ class DebugAction extends Command
 
     protected $namespace = 'App\\Http\\Controllers\\';
 
+    protected function prepareDBConnection()
+    {
+        DB::setDefaultConnection('swagger');
+    }
+
     public function handle()
     {
         try {
+            $this->prepareDBConnection();
             $controller = $this->namespace . $this->argument('controller');
             $method = $this->argument('method');
             $action = new RunAction(

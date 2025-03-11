@@ -11,6 +11,7 @@ use Illuminate\Console\Command;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class MakeApiDoc extends Command
@@ -32,7 +33,7 @@ class MakeApiDoc extends Command
         {--m= : Method name} 
         {--rm : Removes controller\'s action} 
         {--clear : Clear cache}
-
+        {--force : Overrides existing actions}
         {--route= : Route parameter} 
         {--request= : Request body parameter} 
         {--query= : Query parameter}';
@@ -55,7 +56,7 @@ class MakeApiDoc extends Command
         $this->page = $this->argument('page');
     }
 
-    public function getPages(ActionController $actionControllerAttr, ActionMethod $actionMethodAttr, $controllerName) 
+    public function getPages(ActionController $actionControllerAttr, ActionMethod $actionMethodAttr, $controllerName)
     {
         $pages = array_merge($actionControllerAttr->pages, $actionMethodAttr->pages);
         $configPages = array_keys(config('swagger'));
@@ -109,6 +110,12 @@ class MakeApiDoc extends Command
                     else return false;
                 }
             });
+            usort($methods, function($m1, $m2) {
+                $a1 = $m1->getAttributes(ActionMethod::class)[0]->newInstance();
+                $a2 = $m2->getAttributes(ActionMethod::class)[0]->newInstance();
+                return $a2->ord < $a1->ord;
+            });
+
             foreach ($methods as $key => $method) {
                 $actions[] = ['controller' => $reflectionController->getName(), 'method' => $method->getName()];
             }
@@ -123,8 +130,14 @@ class MakeApiDoc extends Command
         return $this->getFiles($path, $namespace, '', $search);
     }
 
+    protected function prepareDBConnection()
+    {
+        DB::setDefaultConnection('swagger');
+    }
+
     public function handle()
     {
+        $this->prepareDBConnection();
         $this->validatePageArgument();
         if ($this->option('clear')) {
             $this->clearCacheData();
@@ -157,11 +170,13 @@ class MakeApiDoc extends Command
 
                 if (isset($cache[$uri])) {
                     if (isset($cache[$uri][$httpMethod])) {
-                        $responses = $cache[$uri][$httpMethod]['responses'];
-                        $cache[$uri][$httpMethod] = $this->resolveResponse($actionResult);
-                        $responses[$httpStatus] = $cache[$uri][$httpMethod]['responses'][$httpStatus];
-                        $cache[$uri][$httpMethod]['responses'] = $responses;
-                        $this->info($this->white($this->page) . ' ' . $this->cyan(strtoupper($httpMethod)) . ' -> ' . $this->yellow($uri) . $this->green(' updated!'));
+                        if ($this->option('force')) {
+                            $responses = $cache[$uri][$httpMethod]['responses'];
+                            $cache[$uri][$httpMethod] = $this->resolveResponse($actionResult);
+                            $responses[$httpStatus] = $cache[$uri][$httpMethod]['responses'][$httpStatus];
+                            $cache[$uri][$httpMethod]['responses'] = $responses;
+                            $this->info($this->white($this->page) . ' ' . $this->cyan(strtoupper($httpMethod)) . ' -> ' . $this->yellow($uri) . $this->green(' updated!'));
+                        }
                     } else {
                         $cache[$uri][$httpMethod] = $this->resolveResponse($actionResult);
                         $this->info($this->white($this->page) . ' ' . $this->cyan(strtoupper($httpMethod)) . ' -> ' . $this->yellow($uri) . $this->green(' generated!'));
