@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class RunAction
 {
@@ -242,7 +243,10 @@ class RunAction
     {
         if (!$this->actionMethodAttr->summary) {
             $controller = str_replace('Controller', '', class_basename($this->controller));
-            $this->actionMethodAttr->summary = $controller . ' ' . $this->method;
+            // $this->actionMethodAttr->summary = $controller . ' ' . $this->method;
+        }
+        if ($this->actionMethodAttr->auth) {
+            $this->actionMethodAttr->summary = 'permission: ' . Str::snake($controller) . '-' . Str::snake($this->method);
         }
     }
 

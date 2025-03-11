@@ -1,5 +1,5 @@
 {
-    "version": "0.0.4",
+    "version": "0.0.5",
     "name": "abdphyr/swagger",
     "description": "This package helps to debug your code and making API documantation",
     "autoload": {

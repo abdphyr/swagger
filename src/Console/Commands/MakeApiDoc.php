@@ -11,6 +11,7 @@ use Illuminate\Console\Command;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -133,17 +134,22 @@ class MakeApiDoc extends Command
     protected function prepareDBConnection()
     {
         DB::setDefaultConnection('swagger');
+        if (!$this->option('controller')) {
+            $this->info('Refreshing and seeding to ' . $this->yellow('swagger') . ' db ...');
+            Artisan::call('migrate:fresh');
+            Artisan::call('db:seed');
+        }
     }
 
     public function handle()
     {
-        $this->prepareDBConnection();
         $this->validatePageArgument();
         if ($this->option('clear')) {
             $this->clearCacheData();
             $this->info('Data is cleared successfully !');
             return;
         }
+        $this->prepareDBConnection();
         $cache = $this->getCacheData();
         $actions = $this->getActions();
         if (empty($actions)) {
