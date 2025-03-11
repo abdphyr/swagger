@@ -234,21 +234,24 @@ class RunAction
     protected function setDescription()
     {
         if (!$this->actionMethodAttr->description) {
-            $controller = str_replace('Controller', '', class_basename($this->controller));
-            $this->actionMethodAttr->description = $controller . ' ' . $this->method;
+            // $this->actionMethodAttr->description = $controller . ' ' . $this->method;
+        }
+        $controller = str_replace('Controller', '', class_basename($this->controller));
+        if ($this->actionMethodAttr->auth) {
+            $this->actionMethodAttr->description = 'permission: ' . Str::snake($controller) . '-' . Str::snake($this->method);
         }
     }
 
     protected function setSummary()
     {
         if (!$this->actionMethodAttr->summary) {
-            $controller = str_replace('Controller', '', class_basename($this->controller));
             // $this->actionMethodAttr->summary = $controller . ' ' . $this->method;
         }
+        $controller = str_replace('Controller', '', class_basename($this->controller));
         if ($this->actionMethodAttr->auth) {
             $this->actionMethodAttr->summary = 'permission: ' . Str::snake($controller) . '-' . Str::snake($this->method);
         }
-    }
+    }   
 
     protected function setQueryParamsFromOption()
     {
