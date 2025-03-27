@@ -14,6 +14,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Http\UploadedFile;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -160,18 +161,24 @@ class RunAction
         foreach ($fileAtrributes as $fileAttr) {
             $attr = $fileAttr->newInstance();
             if ($attr->key && !isset($this->actionMethodAttr->files[$attr->key]))
-                $this->actionMethodAttr->files[$attr->key] = $attr->value;
+                $this->actionMethodAttr->files[$attr->key] = $this->convertFileToTemporary($attr->value);
         }
         $fileProperties = array_filter($properties, fn($property) => $property->getAttributes(FileParam::class));
         foreach ($fileProperties as $property) {
             $param = $property->getAttributes(FileParam::class)[0];
             if (!isset($this->actionMethodAttr->files[$property->getName()]))
-                $this->actionMethodAttr->files[$property->getName()] = $param->newInstance()->value;
+                $this->actionMethodAttr->files[$property->getName()] =  $this->convertFileToTemporary($param->newInstance()->value);
         }
-
         $formRequest->query->add($this->actionMethodAttr->query);
         $formRequest->request->add($this->actionMethodAttr->request);
         $formRequest->files->add($this->actionMethodAttr->files);
+    }
+
+    protected function convertFileToTemporary(UploadedFile $file)
+    {
+        $tempFilePath = tempnam(sys_get_temp_dir(), "");
+        file_put_contents($tempFilePath, $file->getContent());
+        return new UploadedFile($tempFilePath, $file->getClientOriginalName(), mime_content_type($tempFilePath), null, true);
     }
 
     protected function setReflectionController()
@@ -251,7 +258,7 @@ class RunAction
         if ($this->actionMethodAttr->auth) {
             $this->actionMethodAttr->summary = 'permission: ' . Str::snake($controller) . '-' . Str::snake($this->method);
         }
-    }   
+    }
 
     protected function setQueryParamsFromOption()
     {
